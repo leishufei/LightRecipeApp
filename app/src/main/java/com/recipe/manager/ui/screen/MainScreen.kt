@@ -133,18 +133,48 @@ private fun RecipeMainContent(
     val categoryState by categoryViewModel.uiState.collectAsState()
     val recipeState by recipeViewModel.listUiState.collectAsState()
     
-    // 默认选中第一个分类
-    val firstCategoryId = categoryState.categories.firstOrNull()?.id
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     
-    LaunchedEffect(firstCategoryId) {
-        if (selectedCategoryId == null && firstCategoryId != null) {
-            selectedCategoryId = firstCategoryId
+    // 按分类分组所有菜谱
+    val groupedRecipes = remember(recipeState.recipes, categoryState.categories) {
+        categoryState.categories.map { category ->
+            category to recipeState.recipes.filter { it.recipe.categoryId == category.id }
         }
     }
     
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
+    // 计算每个分类在列表中的起始索引
+    val categoryStartIndices = remember(groupedRecipes) {
+        val indices = mutableMapOf<Long, Int>()
+        var currentIndex = 0
+        groupedRecipes.forEach { (category, recipes) ->
+            if (recipes.isNotEmpty()) {
+                indices[category.id] = currentIndex
+                currentIndex += 1 + recipes.size // 1个标题 + N个菜谱
+            }
+        }
+        indices
+    }
+    
+    // 监听滚动位置，自动切换分类
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        val visibleIndex = listState.firstVisibleItemIndex
+        var accumulatedIndex = 0
+        
+        for ((category, recipes) in groupedRecipes) {
+            if (recipes.isEmpty()) continue
+            
+            val categoryItemCount = 1 + recipes.size // 标题 + 菜谱
+            if (visibleIndex >= accumulatedIndex && visibleIndex < accumulatedIndex + categoryItemCount) {
+                if (selectedCategoryId != category.id) {
+                    selectedCategoryId = category.id
+                }
+                break
+            }
+            accumulatedIndex += categoryItemCount
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -169,8 +199,11 @@ private fun RecipeMainContent(
                 selectedCategoryId = selectedCategoryId,
                 onCategorySelected = { categoryId ->
                     selectedCategoryId = categoryId
-                    scope.launch {
-                        listState.animateScrollToItem(0)
+                    // 滚动到对应分类的起始位置
+                    categoryStartIndices[categoryId]?.let { startIndex ->
+                        scope.launch {
+                            listState.animateScrollToItem(startIndex)
+                        }
                     }
                 },
                 onManageCategories = {
@@ -182,9 +215,7 @@ private fun RecipeMainContent(
             // 右侧菜谱列表（带浮动按钮）
             Box(modifier = Modifier.weight(1f)) {
                 RecipeContentArea(
-                    recipes = recipeState.recipes,
-                    categories = categoryState.categories,
-                    selectedCategoryId = selectedCategoryId,
+                    groupedRecipes = groupedRecipes,
                     listState = listState,
                     onRecipeClick = { recipeId ->
                         navController.navigate(Screen.RecipeDetail.createRoute(recipeId))
@@ -194,9 +225,6 @@ private fun RecipeMainContent(
                     },
                     onDeleteClick = { recipeId ->
                         recipeViewModel.deleteRecipe(recipeId)
-                    },
-                    onAddRecipe = {
-                        navController.navigate(Screen.RecipeEdit.createRoute())
                     },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -418,47 +446,49 @@ private fun CategorySideItem(
 
 @Composable
 private fun RecipeContentArea(
-    recipes: List<RecipeWithCategory>,
-    categories: List<com.recipe.manager.data.entity.CategoryWithCount>,
-    selectedCategoryId: Long?,
+    groupedRecipes: List<Pair<com.recipe.manager.data.entity.CategoryWithCount, List<RecipeWithCategory>>>,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onRecipeClick: (Long) -> Unit,
     onEditClick: (Long) -> Unit,
     onDeleteClick: (Long) -> Unit,
-    onAddRecipe: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 默认选中第一个分类
-    val effectiveSelectedId = selectedCategoryId ?: categories.firstOrNull()?.id
-    
-    val filteredRecipes = if (effectiveSelectedId == null) {
-        recipes
-    } else {
-        recipes.filter { it.recipe.categoryId == effectiveSelectedId }
-    }
-    
     LazyColumn(
         state = listState,
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFFF5F5F5))
     ) {
-        // 分类标题
-        item {
-            val selectedCategory = categories.find { it.id == effectiveSelectedId }
-            val categoryName = selectedCategory?.name ?: "菜谱"
-            val recipeCount = filteredRecipes.size
+        groupedRecipes.forEach { (category, recipes) ->
+            if (recipes.isEmpty()) return@forEach
             
-            Text(
-                text = "$categoryName ($recipeCount)",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
-            )
+            // 分类标题
+            item(key = "category_${category.id}") {
+                Text(
+                    text = "${category.name} (${recipes.size})",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF212121),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
+                )
+            }
+            
+            // 该分类下的所有菜谱
+            items(
+                items = recipes,
+                key = { recipe -> "recipe_${recipe.recipe.id}" }
+            ) { recipe ->
+                RecipeCardItem(
+                    recipe = recipe,
+                    onClick = { onRecipeClick(recipe.recipe.id) },
+                    onEditClick = { onEditClick(recipe.recipe.id) },
+                    onDeleteClick = { onDeleteClick(recipe.recipe.id) }
+                )
+            }
         }
         
-        if (filteredRecipes.isEmpty()) {
+        // 如果没有任何菜谱，显示空状态
+        if (groupedRecipes.all { it.second.isEmpty() }) {
             item {
                 Box(
                     modifier = Modifier
@@ -483,15 +513,6 @@ private fun RecipeContentArea(
                         )
                     }
                 }
-            }
-        } else {
-            items(filteredRecipes) { recipe ->
-                RecipeCardItem(
-                    recipe = recipe,
-                    onClick = { onRecipeClick(recipe.recipe.id) },
-                    onEditClick = { onEditClick(recipe.recipe.id) },
-                    onDeleteClick = { onDeleteClick(recipe.recipe.id) }
-                )
             }
         }
     }
