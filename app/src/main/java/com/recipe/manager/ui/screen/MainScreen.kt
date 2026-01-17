@@ -476,20 +476,11 @@ private fun RecipeContentArea(
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("暂无菜谱", color = Color.Gray)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = onAddRecipe,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF00C853)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = ButtonDefaults.buttonElevation(
-                                defaultElevation = 2.dp
-                            )
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("添加菜谱", fontWeight = FontWeight.Medium)
-                        }
+                        Text(
+                            "点击右下角按钮添加菜谱",
+                            color = Color.Gray,
+                            fontSize = 13.sp
+                        )
                     }
                 }
             }

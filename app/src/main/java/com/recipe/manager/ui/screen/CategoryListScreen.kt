@@ -121,9 +121,7 @@ fun CategoryListScreen(
                         tint = MediumGray
                     )
                 },
-                message = "还没有分类，点击下方按钮添加",
-                actionText = "添加分类",
-                onAction = { showAddDialog = true }
+                message = "还没有分类，点击右下角按钮添加"
             )
         } else {
             LazyColumn(

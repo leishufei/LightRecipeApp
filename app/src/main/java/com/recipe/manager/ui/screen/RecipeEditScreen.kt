@@ -74,6 +74,10 @@ fun RecipeEditScreen(
     var currentStepIndex by remember { mutableStateOf(-1) }
     var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
     
+    // 折叠状态
+    var isIngredientsExpanded by remember { mutableStateOf(false) }
+    var isStepsExpanded by remember { mutableStateOf(false) }
+    
     val isEditMode = recipeId != null
     
     // 加载编辑数据
@@ -167,16 +171,10 @@ fun RecipeEditScreen(
             Toast.makeText(context, "请选择分类", Toast.LENGTH_SHORT).show()
             return
         }
+        
+        // 用料和步骤改为可选，只过滤有效数据
         val validIngredients = ingredients.filter { it.name.isNotBlank() && it.amount.isNotBlank() }
-        if (validIngredients.isEmpty()) {
-            Toast.makeText(context, "请至少添加一个用料", Toast.LENGTH_SHORT).show()
-            return
-        }
         val validSteps = steps.filter { it.description.isNotBlank() }
-        if (validSteps.isEmpty()) {
-            Toast.makeText(context, "请至少添加一个步骤", Toast.LENGTH_SHORT).show()
-            return
-        }
         
         val recipe = Recipe(
             id = recipeId ?: 0,
@@ -249,7 +247,7 @@ fun RecipeEditScreen(
                 OutlinedTextField(
                     value = recipeName,
                     onValueChange = { if (it.length <= 20) recipeName = it },
-                    label = { Text("菜谱名称 *") },
+                    label = { Text("名称 *") },
                     placeholder = { Text("请输入菜谱名称（1-20字）") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -271,58 +269,72 @@ fun RecipeEditScreen(
             
             // 用料
             item {
-                SectionHeader(title = "用料 *", onAdd = {
-                    ingredients = ingredients + IngredientInput()
-                })
+                CollapsibleSectionHeader(
+                    title = "用料",
+                    isExpanded = isIngredientsExpanded,
+                    onToggle = { isIngredientsExpanded = !isIngredientsExpanded },
+                    onAdd = if (isIngredientsExpanded) {
+                        { ingredients = ingredients + IngredientInput() }
+                    } else null
+                )
             }
             
-            itemsIndexed(ingredients, key = { _, item -> item.id }) { index, ingredient ->
-                IngredientInputItem(
-                    ingredient = ingredient,
-                    onNameChange = { name ->
-                        ingredients = ingredients.toMutableList().also {
-                            it[index] = it[index].copy(name = name)
+            if (isIngredientsExpanded) {
+                itemsIndexed(ingredients, key = { _, item -> item.id }) { index, ingredient ->
+                    IngredientInputItem(
+                        ingredient = ingredient,
+                        onNameChange = { name ->
+                            ingredients = ingredients.toMutableList().also {
+                                it[index] = it[index].copy(name = name)
+                            }
+                        },
+                        onAmountChange = { amount ->
+                            ingredients = ingredients.toMutableList().also {
+                                it[index] = it[index].copy(amount = amount)
+                            }
+                        },
+                        onDelete = {
+                            if (ingredients.size > 1) {
+                                ingredients = ingredients.toMutableList().also { it.removeAt(index) }
+                            }
                         }
-                    },
-                    onAmountChange = { amount ->
-                        ingredients = ingredients.toMutableList().also {
-                            it[index] = it[index].copy(amount = amount)
-                        }
-                    },
-                    onDelete = {
-                        if (ingredients.size > 1) {
-                            ingredients = ingredients.toMutableList().also { it.removeAt(index) }
-                        }
-                    }
-                )
+                    )
+                }
             }
             
             // 步骤
             item {
-                SectionHeader(title = "步骤 *", onAdd = {
-                    steps = steps + StepInput()
-                })
+                CollapsibleSectionHeader(
+                    title = "步骤",
+                    isExpanded = isStepsExpanded,
+                    onToggle = { isStepsExpanded = !isStepsExpanded },
+                    onAdd = if (isStepsExpanded) {
+                        { steps = steps + StepInput() }
+                    } else null
+                )
             }
             
-            itemsIndexed(steps, key = { _, item -> item.id }) { index, step ->
-                StepInputItem(
-                    step = step,
-                    index = index + 1,
-                    onDescriptionChange = { desc ->
-                        steps = steps.toMutableList().also {
-                            it[index] = it[index].copy(description = desc)
+            if (isStepsExpanded) {
+                itemsIndexed(steps, key = { _, item -> item.id }) { index, step ->
+                    StepInputItem(
+                        step = step,
+                        index = index + 1,
+                        onDescriptionChange = { desc ->
+                            steps = steps.toMutableList().also {
+                                it[index] = it[index].copy(description = desc)
+                            }
+                        },
+                        onPickImage = {
+                            currentStepIndex = index
+                            showImagePicker = true
+                        },
+                        onDelete = {
+                            if (steps.size > 1) {
+                                steps = steps.toMutableList().also { it.removeAt(index) }
+                            }
                         }
-                    },
-                    onPickImage = {
-                        currentStepIndex = index
-                        showImagePicker = true
-                    },
-                    onDelete = {
-                        if (steps.size > 1) {
-                            steps = steps.toMutableList().also { it.removeAt(index) }
-                        }
-                    }
-                )
+                    )
+                }
             }
             
             item { Spacer(modifier = Modifier.height(32.dp)) }
@@ -476,6 +488,56 @@ private fun SectionHeader(title: String, onAdd: () -> Unit) {
         Text(text = title, style = MaterialTheme.typography.titleMedium)
         IconButton(onClick = onAdd) {
             Icon(Icons.Default.Add, "添加", tint = Primary)
+        }
+    }
+}
+
+@Composable
+private fun CollapsibleSectionHeader(
+    title: String,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    onAdd: (() -> Unit)?
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isExpanded) Primary.copy(alpha = 0.1f) else Surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (isExpanded) "收起" else "展开",
+                    tint = Primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isExpanded) Primary else OnSurface
+                )
+            }
+            
+            if (isExpanded && onAdd != null) {
+                IconButton(onClick = onAdd) {
+                    Icon(Icons.Default.Add, "添加", tint = Primary)
+                }
+            }
         }
     }
 }
