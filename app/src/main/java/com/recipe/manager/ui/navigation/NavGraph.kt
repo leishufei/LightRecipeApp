@@ -43,7 +43,7 @@ fun RecipeNavGraph(
         startDestination = Screen.Home.route
     ) {
         composable(Screen.Home.route) {
-            HomeScreen(
+            MainScreen(
                 navController = navController,
                 categoryViewModel = categoryViewModel,
                 recipeViewModel = recipeViewModel

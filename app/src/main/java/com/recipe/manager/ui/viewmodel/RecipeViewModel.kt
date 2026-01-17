@@ -164,6 +164,16 @@ class RecipeViewModel(private val repository: RecipeRepository) : ViewModel() {
         }
     }
     
+    fun deleteRecipe(recipeId: Long) {
+        viewModelScope.launch {
+            try {
+                repository.deleteRecipesByIds(listOf(recipeId))
+            } catch (e: Exception) {
+                // 静默失败，或者可以添加错误处理
+            }
+        }
+    }
+    
     fun toggleFavorite(id: Long, isFavorite: Boolean) {
         viewModelScope.launch {
             repository.updateFavorite(id, isFavorite)
