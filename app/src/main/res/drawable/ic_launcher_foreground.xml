@@ -4,13 +4,54 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    
+    <!-- 背景圆形 - 橙红色渐变 -->
     <path
         android:fillColor="#FF6B35"
-        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0"/>
+        android:pathData="M54,54m-42,0a42,42 0,1 1,84 0a42,42 0,1 1,-84 0"/>
+    
+    <!-- "菜"字 - 白色 -->
+    <!-- 草字头 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,30c-13.3,0 -24,10.7 -24,24s10.7,24 24,24s24,-10.7 24,-24S67.3,30 54,30zM54,72c-9.9,0 -18,-8.1 -18,-18s8.1,-18 18,-18s18,8.1 18,18S63.9,72 54,72z"/>
+        android:pathData="M38,32 L38,36 L42,36 L42,32 Z"/>
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,42c-6.6,0 -12,5.4 -12,12s5.4,12 12,12s12,-5.4 12,-12S60.6,42 54,42zM54,60c-3.3,0 -6,-2.7 -6,-6s2.7,-6 6,-6s6,2.7 6,6S57.3,60 54,60z"/>
+        android:pathData="M46,32 L46,36 L50,36 L50,32 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M58,32 L58,36 L62,36 L62,32 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66,32 L66,36 L70,36 L70,32 Z"/>
+    
+    <!-- 横线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,40 L72,40 L72,43 L36,43 Z"/>
+    
+    <!-- 木字旁 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,46 L44,46 L44,72 L40,72 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,54 L48,54 L48,57 L36,57 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,64 L50,64 L50,67 L34,67 Z"/>
+    
+    <!-- 右边部分 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,46 L74,46 L74,49 L54,49 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M62,50 L66,50 L66,72 L62,72 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,56 L74,56 L74,59 L54,59 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,66 L74,66 L74,69 L54,69 Z"/>
 </vector>

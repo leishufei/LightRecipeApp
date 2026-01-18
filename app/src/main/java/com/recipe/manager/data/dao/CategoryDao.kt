@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CategoryDao {
     
-    @Query("SELECT * FROM categories ORDER BY createdAt DESC")
+    @Query("SELECT * FROM categories ORDER BY createdAt ASC")
     fun getAllCategories(): Flow<List<Category>>
     
     @Query("""
@@ -17,7 +17,7 @@ interface CategoryDao {
         FROM categories c 
         LEFT JOIN recipes r ON c.id = r.categoryId 
         GROUP BY c.id 
-        ORDER BY c.createdAt DESC
+        ORDER BY c.createdAt ASC
     """)
     fun getCategoriesWithCount(): Flow<List<CategoryWithCount>>
     

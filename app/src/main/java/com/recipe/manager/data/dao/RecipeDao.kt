@@ -9,21 +9,21 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface RecipeDao {
     
-    @Query("SELECT * FROM recipes ORDER BY clickCount DESC")
+    @Query("SELECT * FROM recipes ORDER BY createdAt DESC")
     fun getAllRecipes(): Flow<List<Recipe>>
     
     @Transaction
-    @Query("SELECT * FROM recipes ORDER BY clickCount DESC")
+    @Query("SELECT * FROM recipes ORDER BY createdAt DESC")
     fun getAllRecipesWithCategory(): Flow<List<RecipeWithCategory>>
     
-    @Query("SELECT * FROM recipes WHERE categoryId = :categoryId ORDER BY clickCount DESC")
+    @Query("SELECT * FROM recipes WHERE categoryId = :categoryId ORDER BY createdAt DESC")
     fun getRecipesByCategory(categoryId: Long): Flow<List<Recipe>>
     
     @Transaction
-    @Query("SELECT * FROM recipes WHERE categoryId = :categoryId ORDER BY clickCount DESC")
+    @Query("SELECT * FROM recipes WHERE categoryId = :categoryId ORDER BY createdAt DESC")
     fun getRecipesByCategoryWithDetails(categoryId: Long): Flow<List<RecipeWithCategory>>
     
-    @Query("SELECT * FROM recipes WHERE isFavorite = 1 ORDER BY clickCount DESC")
+    @Query("SELECT * FROM recipes WHERE isFavorite = 1 ORDER BY createdAt DESC")
     fun getFavoriteRecipes(): Flow<List<Recipe>>
     
     @Query("""
@@ -31,7 +31,7 @@ interface RecipeDao {
         LEFT JOIN ingredients i ON r.id = i.recipeId 
         WHERE r.name LIKE '%' || :keyword || '%' 
            OR i.name LIKE '%' || :keyword || '%'
-        ORDER BY r.clickCount DESC
+        ORDER BY r.createdAt DESC
     """)
     fun searchRecipes(keyword: String): Flow<List<Recipe>>
     

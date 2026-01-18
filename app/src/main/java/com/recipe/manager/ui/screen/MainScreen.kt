@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +39,7 @@ fun MainScreen(
     categoryViewModel: CategoryViewModel,
     recipeViewModel: RecipeViewModel
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     
     Scaffold(
         bottomBar = {
@@ -66,61 +67,56 @@ private fun BottomNavigationBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit
 ) {
-    NavigationBar(
-        containerColor = Color.White,
-        tonalElevation = 8.dp,
-        modifier = Modifier.height(64.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        color = Color.White,
+        shadowElevation = 8.dp
     ) {
-        NavigationBarItem(
-            icon = { 
-                Icon(
-                    Icons.Default.Restaurant, 
-                    contentDescription = "菜谱",
-                    modifier = Modifier.size(24.dp)
-                ) 
-            },
-            label = { 
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 菜谱 Tab
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(
+                        if (selectedTab == 0) Color(0xFFFFF0EB) else Color.Transparent
+                    )
+                    .clickable { onTabSelected(0) },
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    "菜谱",
-                    fontSize = 12.sp,
-                    fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal
-                ) 
-            },
-            selected = selectedTab == 0,
-            onClick = { onTabSelected(0) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF00C853),
-                selectedTextColor = Color(0xFF00C853),
-                unselectedIconColor = Color(0xFF9E9E9E),
-                unselectedTextColor = Color(0xFF9E9E9E),
-                indicatorColor = Color(0xFFE8F5E9)
-            )
-        )
-        NavigationBarItem(
-            icon = { 
-                Icon(
-                    Icons.Default.Person, 
-                    contentDescription = "我的",
-                    modifier = Modifier.size(24.dp)
-                ) 
-            },
-            label = { 
+                    text = "菜谱",
+                    fontSize = 15.sp,
+                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                    color = if (selectedTab == 0) Color(0xFFFF6B35) else Color(0xFF9E9E9E)
+                )
+            }
+            
+            // 我的 Tab
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(
+                        if (selectedTab == 1) Color(0xFFFFF0EB) else Color.Transparent
+                    )
+                    .clickable { onTabSelected(1) },
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    "我的",
-                    fontSize = 12.sp,
-                    fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal
-                ) 
-            },
-            selected = selectedTab == 1,
-            onClick = { onTabSelected(1) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF00C853),
-                selectedTextColor = Color(0xFF00C853),
-                unselectedIconColor = Color(0xFF9E9E9E),
-                unselectedTextColor = Color(0xFF9E9E9E),
-                indicatorColor = Color(0xFFE8F5E9)
-            )
-        )
+                    text = "我的",
+                    fontSize = 15.sp,
+                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                    color = if (selectedTab == 1) Color(0xFFFF6B35) else Color(0xFF9E9E9E)
+                )
+            }
+        }
     }
 }
 
@@ -134,6 +130,7 @@ private fun RecipeMainContent(
     val recipeState by recipeViewModel.listUiState.collectAsState()
     
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
+    var recipeToDelete by remember { mutableStateOf<Pair<Long, String>?>(null) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     
@@ -141,6 +138,16 @@ private fun RecipeMainContent(
     val groupedRecipes = remember(recipeState.recipes, categoryState.categories) {
         categoryState.categories.map { category ->
             category to recipeState.recipes.filter { it.recipe.categoryId == category.id }
+        }
+    }
+    
+    // 初始化选中第一个有菜谱的分类
+    LaunchedEffect(groupedRecipes) {
+        if (selectedCategoryId == null) {
+            val firstCategoryWithRecipes = groupedRecipes.firstOrNull { it.second.isNotEmpty() }
+            if (firstCategoryWithRecipes != null) {
+                selectedCategoryId = firstCategoryWithRecipes.first.id
+            }
         }
     }
     
@@ -157,23 +164,57 @@ private fun RecipeMainContent(
         indices
     }
     
-    // 监听滚动位置，自动切换分类
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        val visibleIndex = listState.firstVisibleItemIndex
-        var accumulatedIndex = 0
-        
-        for ((category, recipes) in groupedRecipes) {
-            if (recipes.isEmpty()) continue
+    // 使用 derivedStateOf 优化滚动监听，减少重组
+    val currentCategoryId by remember {
+        derivedStateOf {
+            val visibleIndex = listState.firstVisibleItemIndex
+            var accumulatedIndex = 0
             
-            val categoryItemCount = 1 + recipes.size // 标题 + 菜谱
-            if (visibleIndex >= accumulatedIndex && visibleIndex < accumulatedIndex + categoryItemCount) {
-                if (selectedCategoryId != category.id) {
-                    selectedCategoryId = category.id
+            for ((category, recipes) in groupedRecipes) {
+                if (recipes.isEmpty()) continue
+                
+                val categoryItemCount = 1 + recipes.size // 标题 + 菜谱
+                if (visibleIndex >= accumulatedIndex && visibleIndex < accumulatedIndex + categoryItemCount) {
+                    return@derivedStateOf category.id
                 }
-                break
+                accumulatedIndex += categoryItemCount
             }
-            accumulatedIndex += categoryItemCount
+            selectedCategoryId
         }
+    }
+    
+    // 同步当前分类ID
+    LaunchedEffect(currentCategoryId) {
+        if (currentCategoryId != null && selectedCategoryId != currentCategoryId) {
+            selectedCategoryId = currentCategoryId
+        }
+    }
+    
+    // 删除确认对话框
+    recipeToDelete?.let { (recipeId, recipeName) ->
+        AlertDialog(
+            onDismissRequest = { recipeToDelete = null },
+            title = { Text("删除菜谱") },
+            text = { Text("确定要删除「$recipeName」吗？此操作无法撤销。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        recipeViewModel.deleteRecipe(recipeId)
+                        recipeToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFFF5252)
+                    )
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { recipeToDelete = null }) {
+                    Text("取消")
+                }
+            }
+        )
     }
     
     Column(
@@ -223,8 +264,8 @@ private fun RecipeMainContent(
                     onEditClick = { recipeId ->
                         navController.navigate(Screen.RecipeEdit.createRoute(recipeId))
                     },
-                    onDeleteClick = { recipeId ->
-                        recipeViewModel.deleteRecipe(recipeId)
+                    onDeleteClick = { recipeId, recipeName ->
+                        recipeToDelete = recipeId to recipeName
                     },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -235,7 +276,7 @@ private fun RecipeMainContent(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(20.dp),
-                    containerColor = Color(0xFF00C853),
+                    containerColor = Color(0xFFFF6B35),
                     contentColor = Color.White,
                     elevation = FloatingActionButtonDefaults.elevation(
                         defaultElevation = 6.dp,
@@ -264,8 +305,8 @@ private fun TopHeaderSection(
             .background(
                 brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                     colors = listOf(
-                        Color(0xFF00C853),
-                        Color(0xFF00E676)
+                        Color(0xFFFF6B35),
+                        Color(0xFFFF8555)
                     )
                 )
             )
@@ -315,9 +356,7 @@ private fun TopHeaderSection(
             // 右侧：搜索按钮
             IconButton(
                 onClick = { navController.navigate(Screen.Search.route) },
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
                     Icons.Default.Search,
@@ -374,14 +413,14 @@ private fun CategorySideBar(
                 Icon(
                     Icons.Default.Settings,
                     contentDescription = "分类管理",
-                    tint = Color(0xFF00C853),
+                    tint = Color(0xFFFF6B35),
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "管理",
+                    text = "分类管理",
                     fontSize = 11.sp,
-                    color = Color(0xFF00C853),
+                    color = Color(0xFFFF6B35),
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -401,7 +440,7 @@ private fun CategorySideItem(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(
-                if (isSelected) Color(0xFFE8F5E9) else Color.Transparent
+                if (isSelected) Color(0xFFFFE8E0) else Color.Transparent
             )
             .padding(vertical = 16.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
@@ -414,7 +453,7 @@ private fun CategorySideItem(
                 text = name,
                 fontSize = 15.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color(0xFF00C853) else Color(0xFF616161),
+                color = if (isSelected) Color(0xFFFF6B35) else Color(0xFF616161),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -423,7 +462,7 @@ private fun CategorySideItem(
                 Text(
                     text = "$count",
                     fontSize = 11.sp,
-                    color = if (isSelected) Color(0xFF00C853) else Color(0xFF9E9E9E),
+                    color = if (isSelected) Color(0xFFFF6B35) else Color(0xFF9E9E9E),
                     fontWeight = FontWeight.Normal
                 )
             }
@@ -435,7 +474,7 @@ private fun CategorySideItem(
                     .width(4.dp)
                     .height(32.dp)
                     .background(
-                        Color(0xFF00C853),
+                        Color(0xFFFF6B35),
                         RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
                     )
                     .align(Alignment.CenterStart)
@@ -450,20 +489,25 @@ private fun RecipeContentArea(
     listState: androidx.compose.foundation.lazy.LazyListState,
     onRecipeClick: (Long) -> Unit,
     onEditClick: (Long) -> Unit,
-    onDeleteClick: (Long) -> Unit,
+    onDeleteClick: (Long, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
         state = listState,
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(Color(0xFFF5F5F5)),
+        // 添加flingBehavior优化滑动体验
+        flingBehavior = androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
     ) {
         groupedRecipes.forEach { (category, recipes) ->
             if (recipes.isEmpty()) return@forEach
             
             // 分类标题
-            item(key = "category_${category.id}") {
+            item(
+                key = "category_${category.id}",
+                contentType = "category_header"
+            ) {
                 Text(
                     text = "${category.name} (${recipes.size})",
                     fontSize = 18.sp,
@@ -476,20 +520,21 @@ private fun RecipeContentArea(
             // 该分类下的所有菜谱
             items(
                 items = recipes,
-                key = { recipe -> "recipe_${recipe.recipe.id}" }
+                key = { recipe -> recipe.recipe.id },
+                contentType = { "recipe_card" }
             ) { recipe ->
                 RecipeCardItem(
                     recipe = recipe,
                     onClick = { onRecipeClick(recipe.recipe.id) },
                     onEditClick = { onEditClick(recipe.recipe.id) },
-                    onDeleteClick = { onDeleteClick(recipe.recipe.id) }
+                    onDeleteClick = { onDeleteClick(recipe.recipe.id, recipe.recipe.name) }
                 )
             }
         }
         
         // 如果没有任何菜谱，显示空状态
         if (groupedRecipes.all { it.second.isEmpty() }) {
-            item {
+            item(contentType = "empty_state") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -540,7 +585,7 @@ private fun RecipeCardItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 菜谱图片
@@ -556,7 +601,7 @@ private fun RecipeCardItem(
                 )
             }
             
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             
             // 菜谱信息
             Column(
@@ -573,31 +618,27 @@ private fun RecipeCardItem(
                 )
             }
             
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             
             // 操作按钮（图标形式）
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 IconButton(
                     onClick = onEditClick,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(Color(0xFFE8F5E9), CircleShape)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         Icons.Default.Edit,
                         contentDescription = "编辑",
-                        tint = Color(0xFF00C853),
+                        tint = Color(0xFFFF6B35),
                         modifier = Modifier.size(20.dp)
                     )
                 }
                 
                 IconButton(
                     onClick = onDeleteClick,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(Color(0xFFFFEBEE), CircleShape)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         Icons.Default.Delete,
@@ -625,8 +666,8 @@ private fun ProfileScreen(navController: NavController) {
                 .background(
                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                         colors = listOf(
-                            Color(0xFF00C853),
-                            Color(0xFF00E676)
+                            Color(0xFFFF6B35),
+                            Color(0xFFFF8555)
                         )
                     )
                 )
@@ -722,13 +763,13 @@ private fun ProfileMenuItem(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFE8F5E9)),
+                    .background(Color(0xFFFFE8E0)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = Color(0xFF00C853),
+                    tint = Color(0xFFFF6B35),
                     modifier = Modifier.size(24.dp)
                 )
             }

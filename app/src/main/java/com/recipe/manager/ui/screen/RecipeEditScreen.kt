@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -448,10 +449,28 @@ private fun CategorySelector(
             readOnly = true,
             label = { Text("分类 *") },
             placeholder = { Text("请选择分类") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPicker) },
+            trailingIcon = { 
+                Box(
+                    modifier = Modifier.clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) {
+                        onShowPickerChange(!showPicker)
+                    }
+                ) {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPicker)
+                }
+            },
+            colors = OutlinedTextFieldDefaults.colors(),
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor()
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    onShowPickerChange(!showPicker)
+                }
         )
         
         ExposedDropdownMenu(
@@ -499,15 +518,17 @@ private fun CollapsibleSectionHeader(
     onToggle: () -> Unit,
     onAdd: (() -> Unit)?
 ) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle),
+            .clickable(
+                onClick = onToggle,
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isExpanded) Primary.copy(alpha = 0.1f) else Surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        color = if (isExpanded) Primary.copy(alpha = 0.1f) else Surface,
+        shadowElevation = 1.dp
     ) {
         Row(
             modifier = Modifier
