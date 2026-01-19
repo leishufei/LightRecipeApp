@@ -24,9 +24,9 @@ val AccentContainer = Color(0xFFE67E22)
 val OnAccentContainer = Color.White
 
 // 背景色
-val Background = Color(0xFFF5F5F5)       // 浅灰白
+val Background = Color(0xFFF0F0F0)       // 浅灰背景（稍深一点便于区分）
 val Surface = Color(0xFFFFFFFF)          // 纯白
-val SurfaceVariant = Color(0xFFEEEEEE)   // 灰色
+val SurfaceVariant = Color(0xFFF8F8F8)   // 浅灰白（组件背景）
 val OnSurfaceVariant = Color(0xFF757575) // 灰色文字
 
 // 错误和状态色
@@ -58,10 +58,10 @@ val Gray800 = Color(0xFF424242)
 val Gray900 = Color(0xFF212121)
 
 // 常用颜色别名
-val LightGray = Gray200
+val LightGray = Gray300                  // 边框颜色（加深便于区分）
 val MediumGray = Gray600
 val DarkGray = Gray800
-val Divider = Color(0xFFE0E0E0)
+val Divider = Color(0xFFD0D0D0)          // 分割线颜色（加深）
 
 // 做饭模式专用颜色
 val CookingBackground = Color(0xFFF5F5F5)
@@ -84,7 +84,7 @@ val WhiteAlpha80 = Color(0xCCFFFFFF)
 // 特殊功能色
 val FavoriteColor = Color(0xFFE53935)    // 红色（收藏）
 val EditColor = Color(0xFF5B9A5B)        // 绿色（编辑）
-val DeleteColor = Color(0xFFE67E22)      // 橙红色（删除）
+val DeleteColor = Color(0xFFE53935)      // 红色（删除）
 
 // 选中状态色
 val SelectedBackground = Color(0xFF5B9A5B)

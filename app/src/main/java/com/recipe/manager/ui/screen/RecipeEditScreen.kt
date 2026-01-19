@@ -21,9 +21,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -33,6 +35,7 @@ import com.recipe.manager.data.entity.Recipe
 import com.recipe.manager.data.entity.Step
 import com.recipe.manager.ui.components.*
 import com.recipe.manager.ui.navigation.Screen
+import com.recipe.manager.ui.theme.*
 import com.recipe.manager.ui.theme.*
 import com.recipe.manager.ui.viewmodel.CategoryViewModel
 import com.recipe.manager.ui.viewmodel.RecipeViewModel
@@ -69,6 +72,7 @@ fun RecipeEditScreen(
     var coverImagePath by remember { mutableStateOf<String?>(null) }
     var ingredients by remember { mutableStateOf(listOf(IngredientInput())) }
     var steps by remember { mutableStateOf(listOf(StepInput())) }
+    var originalRecipe by remember { mutableStateOf<Recipe?>(null) }
     
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showImagePicker by remember { mutableStateOf(false) }
@@ -92,6 +96,7 @@ fun RecipeEditScreen(
     LaunchedEffect(detailState.recipeWithDetails) {
         if (isEditMode && detailState.recipeWithDetails != null) {
             val details = detailState.recipeWithDetails!!
+            originalRecipe = details.recipe
             recipeName = details.recipe.name
             selectedCategoryId = details.recipe.categoryId
             coverImagePath = details.recipe.coverImagePath
@@ -177,12 +182,23 @@ fun RecipeEditScreen(
         val validIngredients = ingredients.filter { it.name.isNotBlank() && it.amount.isNotBlank() }
         val validSteps = steps.filter { it.description.isNotBlank() }
         
-        val recipe = Recipe(
-            id = recipeId ?: 0,
-            name = recipeName.trim(),
-            categoryId = selectedCategoryId!!,
-            coverImagePath = coverImagePath
-        )
+        val recipe = if (isEditMode && originalRecipe != null) {
+            // 编辑模式：保留原有的创建时间、点击次数和收藏状态
+            originalRecipe!!.copy(
+                name = recipeName.trim(),
+                categoryId = selectedCategoryId!!,
+                coverImagePath = coverImagePath
+            )
+        } else {
+            // 新增模式：创建新的Recipe
+            Recipe(
+                id = 0,
+                name = recipeName.trim(),
+                categoryId = selectedCategoryId!!,
+                coverImagePath = coverImagePath
+            )
+        }
+        
         val ingredientEntities = validIngredients.map {
             Ingredient(name = it.name.trim(), amount = it.amount.trim(), recipeId = 0)
         }
@@ -248,10 +264,19 @@ fun RecipeEditScreen(
                 OutlinedTextField(
                     value = recipeName,
                     onValueChange = { if (it.length <= 20) recipeName = it },
-                    label = { Text("名称 *") },
-                    placeholder = { Text("请输入菜谱名称（1-20字）") },
+                    label = { Text("名称 *", fontSize = 13.sp) },
+                    placeholder = { Text("请输入菜谱名称", fontSize = 13.sp, color = MediumGray) },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Primary,
+                        unfocusedBorderColor = LightGray,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = Primary
+                    ),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                 )
             }
             
@@ -344,36 +369,13 @@ fun RecipeEditScreen(
     
     // 图片选择对话框
     if (showImagePicker) {
-        AlertDialog(
-            onDismissRequest = { showImagePicker = false },
-            title = { Text("选择图片") },
-            text = {
-                Column {
-                    TextButton(
-                        onClick = {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.CameraAlt, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("拍照")
-                    }
-                    TextButton(
-                        onClick = { galleryLauncher.launch("image/*") },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PhotoLibrary, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("从相册选择")
-                    }
-                }
+        ImagePickerDialog(
+            onDismiss = { showImagePicker = false },
+            onCameraClick = {
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showImagePicker = false }) {
-                    Text("取消")
-                }
+            onGalleryClick = {
+                galleryLauncher.launch("image/*")
             }
         )
     }
@@ -387,9 +389,11 @@ private fun CoverImageSection(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
+            .height(180.dp)
             .clickable(onClick = onPickImage),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -405,23 +409,27 @@ private fun CoverImageSection(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .clip(CircleShape)
+                        .padding(12.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(Primary)
-                        .padding(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.Edit, "更换", tint = OnPrimary, modifier = Modifier.size(20.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Edit, "更换", tint = OnPrimary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("更换", color = OnPrimary, fontSize = 12.sp)
+                    }
                 }
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         Icons.Default.AddAPhoto,
                         contentDescription = "添加封面",
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(40.dp),
                         tint = MediumGray
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("点击添加封面图", color = MediumGray)
+                    Text("点击添加封面图", color = MediumGray, fontSize = 13.sp)
                 }
             }
         }
@@ -447,8 +455,8 @@ private fun CategorySelector(
             value = selectedCategory?.name ?: "",
             onValueChange = {},
             readOnly = true,
-            label = { Text("分类 *") },
-            placeholder = { Text("请选择分类") },
+            label = { Text("分类 *", fontSize = 13.sp) },
+            placeholder = { Text("请选择分类", fontSize = 13.sp, color = MediumGray) },
             trailingIcon = { 
                 Box(
                     modifier = Modifier.clickable(
@@ -461,7 +469,14 @@ private fun CategorySelector(
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPicker)
                 }
             },
-            colors = OutlinedTextFieldDefaults.colors(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Primary,
+                unfocusedBorderColor = LightGray,
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White
+            ),
+            shape = RoundedCornerShape(12.dp),
+            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor()
@@ -479,13 +494,13 @@ private fun CategorySelector(
         ) {
             if (categories.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("暂无分类，请先添加") },
+                    text = { Text("暂无分类，请先添加", fontSize = 13.sp, color = MediumGray) },
                     onClick = { onShowPickerChange(false) }
                 )
             } else {
                 categories.forEach { category ->
                     DropdownMenuItem(
-                        text = { Text(category.name) },
+                        text = { Text(category.name, fontSize = 14.sp) },
                         onClick = {
                             onSelect(category.id)
                             onShowPickerChange(false)
@@ -526,14 +541,14 @@ private fun CollapsibleSectionHeader(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ),
-        shape = RoundedCornerShape(12.dp),
-        color = if (isExpanded) Primary.copy(alpha = 0.1f) else Surface,
-        shadowElevation = 1.dp
+        shape = RoundedCornerShape(14.dp),
+        color = if (isExpanded) Primary.copy(alpha = 0.08f) else Surface,
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -544,19 +559,24 @@ private fun CollapsibleSectionHeader(
                 Icon(
                     if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (isExpanded) "收起" else "展开",
-                    tint = Primary
+                    tint = if (isExpanded) Primary else MediumGray,
+                    modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isExpanded) Primary else OnSurface
+                    fontSize = 15.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = if (isExpanded) Primary else DarkGray
                 )
             }
             
             if (isExpanded && onAdd != null) {
-                IconButton(onClick = onAdd) {
-                    Icon(Icons.Default.Add, "添加", tint = Primary)
+                IconButton(
+                    onClick = onAdd,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, "添加", tint = Primary, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -571,26 +591,53 @@ private fun IngredientInputItem(
     onDelete: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
             value = ingredient.name,
             onValueChange = onNameChange,
-            label = { Text("用料名称") },
-            modifier = Modifier.weight(1f),
-            singleLine = true
+            placeholder = { Text("食材名称", fontSize = 13.sp, color = MediumGray) },
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
+            singleLine = true,
+            shape = RoundedCornerShape(10.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Primary,
+                unfocusedBorderColor = LightGray,
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                cursorColor = Primary
+            ),
+            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
         )
-        Spacer(modifier = Modifier.width(8.dp))
         OutlinedTextField(
             value = ingredient.amount,
             onValueChange = onAmountChange,
-            label = { Text("用量") },
-            modifier = Modifier.weight(0.6f),
-            singleLine = true
+            placeholder = { Text("用量", fontSize = 13.sp, color = MediumGray) },
+            modifier = Modifier
+                .weight(0.6f)
+                .height(48.dp),
+            singleLine = true,
+            shape = RoundedCornerShape(10.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Primary,
+                unfocusedBorderColor = LightGray,
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                cursorColor = Primary
+            ),
+            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
         )
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Close, "删除", tint = Error)
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(Icons.Default.RemoveCircleOutline, "删除", tint = Error, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -605,9 +652,11 @@ private fun StepInputItem(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -616,27 +665,41 @@ private fun StepInputItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(Primary),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("$index", color = OnPrimary, style = MaterialTheme.typography.labelMedium)
+                        Text("$index", color = OnPrimary, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("步骤 $index", style = MaterialTheme.typography.titleSmall)
+                    Text("步骤", fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, color = DarkGray)
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Close, "删除", tint = Error)
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(Icons.Default.Close, "删除", tint = Error, modifier = Modifier.size(16.dp))
                 }
             }
+            
+            Spacer(modifier = Modifier.height(8.dp))
             
             OutlinedTextField(
                 value = step.description,
                 onValueChange = onDescriptionChange,
-                label = { Text("步骤描述") },
+                placeholder = { Text("描述这一步的操作...", fontSize = 13.sp, color = MediumGray) },
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 2
+                minLines = 2,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = LightGray,
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    cursorColor = Primary
+                ),
+                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
             )
             
             Spacer(modifier = Modifier.height(8.dp))
@@ -648,25 +711,37 @@ private fun StepInputItem(
                         contentDescription = "步骤图片",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
-                            .clip(RoundedCornerShape(8.dp)),
+                            .height(100.dp)
+                            .clip(RoundedCornerShape(12.dp)),
                         contentScale = ContentScale.Crop
                     )
-                    IconButton(
-                        onClick = onPickImage,
-                        modifier = Modifier.align(Alignment.TopEnd)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .clickable(onClick = onPickImage),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Edit, "更换", tint = OnPrimary)
+                        Icon(Icons.Default.Edit, "更换", tint = Color.White, modifier = Modifier.size(16.dp))
                     }
                 }
             } else {
                 OutlinedButton(
                     onClick = onPickImage,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MediumGray),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(LightGray)
+                    ),
+                    contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    Icon(Icons.Default.AddAPhoto, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("添加步骤图片（可选）")
+                    Icon(Icons.Default.AddPhotoAlternate, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("添加步骤图片", fontSize = 13.sp)
                 }
             }
         }

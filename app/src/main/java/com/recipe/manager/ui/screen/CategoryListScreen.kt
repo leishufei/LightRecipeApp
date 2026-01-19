@@ -186,10 +186,9 @@ fun CategoryListScreen(
         } else {
             "确定要删除分类「${category.name}」吗？"
         }
-        ConfirmDialog(
+        DeleteConfirmDialog(
             title = "删除分类",
             message = message,
-            confirmText = "删除",
             onConfirm = {
                 viewModel.deleteCategory(category) { _, _ ->
                     deletingCategory = null
@@ -201,10 +200,9 @@ fun CategoryListScreen(
     
     // 批量删除确认
     if (showDeleteConfirm) {
-        ConfirmDialog(
+        DeleteConfirmDialog(
             title = "批量删除",
             message = "确定要删除选中的 ${uiState.selectedIds.size} 个分类吗？关联的菜谱也会被删除。",
-            confirmText = "删除",
             onConfirm = {
                 viewModel.deleteSelected { _, _ ->
                     showDeleteConfirm = false
@@ -277,11 +275,17 @@ private fun CategoryListItem(
             }
             
             if (!isSelectionMode) {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MediumGray)
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = Primary, modifier = Modifier.size(20.dp))
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = Error)
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = Error, modifier = Modifier.size(20.dp))
                 }
             }
         }

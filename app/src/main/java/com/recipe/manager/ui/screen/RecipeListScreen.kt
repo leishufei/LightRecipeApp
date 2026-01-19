@@ -213,10 +213,9 @@ fun RecipeListScreen(
     }
     
     if (showDeleteConfirm) {
-        ConfirmDialog(
+        DeleteConfirmDialog(
             title = "批量删除",
-            message = "确定要删除选中的 ${uiState.selectedIds.size} 个菜谱吗？",
-            confirmText = "删除",
+            message = "确定要删除选中的 ${uiState.selectedIds.size} 个菜谱吗？删除后无法恢复。",
             onConfirm = {
                 viewModel.deleteSelected { _, _ ->
                     showDeleteConfirm = false

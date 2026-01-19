@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.recipe.manager.data.entity.RecipeWithCategory
+import com.recipe.manager.ui.components.DeleteConfirmDialog
 import com.recipe.manager.ui.components.RecipeImage
 import com.recipe.manager.ui.navigation.Screen
 import com.recipe.manager.ui.theme.*
@@ -192,28 +193,14 @@ private fun RecipeMainContent(
     
     // 删除确认对话框
     recipeToDelete?.let { (recipeId, recipeName) ->
-        AlertDialog(
-            onDismissRequest = { recipeToDelete = null },
-            title = { Text("删除菜谱") },
-            text = { Text("确定要删除「$recipeName」吗？此操作无法撤销。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        recipeViewModel.deleteRecipe(recipeId)
-                        recipeToDelete = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = Color(0xFFFF5252)
-                    )
-                ) {
-                    Text("删除")
-                }
+        DeleteConfirmDialog(
+            title = "删除菜谱",
+            message = "确定要删除「$recipeName」吗？删除后无法恢复。",
+            onConfirm = {
+                recipeViewModel.deleteRecipe(recipeId)
+                recipeToDelete = null
             },
-            dismissButton = {
-                TextButton(onClick = { recipeToDelete = null }) {
-                    Text("取消")
-                }
-            }
+            onDismiss = { recipeToDelete = null }
         )
     }
     

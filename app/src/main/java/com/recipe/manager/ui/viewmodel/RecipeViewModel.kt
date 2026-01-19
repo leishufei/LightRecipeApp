@@ -27,7 +27,7 @@ data class RecipeListUiState(
     val recipes: List<RecipeWithCategory> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val sortOrder: RecipeSortOrder = RecipeSortOrder.BY_CLICK_COUNT,
+    val sortOrder: RecipeSortOrder = RecipeSortOrder.BY_CREATED_TIME,
     val viewMode: RecipeViewMode = RecipeViewMode.LIST,
     val selectedCategoryId: Long? = null,
     val searchKeyword: String = "",
@@ -49,7 +49,7 @@ class RecipeViewModel(private val repository: RecipeRepository) : ViewModel() {
     private val _detailUiState = MutableStateFlow(RecipeDetailUiState())
     val detailUiState: StateFlow<RecipeDetailUiState> = _detailUiState.asStateFlow()
     
-    private val _sortOrder = MutableStateFlow(RecipeSortOrder.BY_CLICK_COUNT)
+    private val _sortOrder = MutableStateFlow(RecipeSortOrder.BY_CREATED_TIME)
     private val _categoryFilter = MutableStateFlow<Long?>(null)
     private val _searchKeyword = MutableStateFlow("")
     

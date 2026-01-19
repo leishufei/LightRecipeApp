@@ -143,10 +143,9 @@ fun RecipeDetailScreen(
     }
     
     if (showDeleteConfirm) {
-        ConfirmDialog(
+        DeleteConfirmDialog(
             title = "删除菜谱",
-            message = "确定要删除这个菜谱吗？",
-            confirmText = "删除",
+            message = "确定要删除这个菜谱吗？删除后无法恢复。",
             onConfirm = {
                 recipeWithDetails?.let {
                     viewModel.deleteRecipe(it.recipe) { success, _ ->
