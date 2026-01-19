@@ -166,8 +166,12 @@ private fun RecipeMainContent(
     }
     
     // 使用 derivedStateOf 优化滚动监听，减少重组
-    val currentCategoryId by remember {
+    val currentCategoryId by remember(groupedRecipes) {
         derivedStateOf {
+            if (!listState.isScrollInProgress && listState.firstVisibleItemIndex == 0) {
+                return@derivedStateOf groupedRecipes.firstOrNull { it.second.isNotEmpty() }?.first?.id
+            }
+            
             val visibleIndex = listState.firstVisibleItemIndex
             var accumulatedIndex = 0
             
@@ -184,9 +188,9 @@ private fun RecipeMainContent(
         }
     }
     
-    // 同步当前分类ID
-    LaunchedEffect(currentCategoryId) {
-        if (currentCategoryId != null && selectedCategoryId != currentCategoryId) {
+    // 同步当前分类ID（仅在滚动停止时更新）
+    LaunchedEffect(currentCategoryId, listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress && currentCategoryId != null && selectedCategoryId != currentCategoryId) {
             selectedCategoryId = currentCategoryId
         }
     }
@@ -227,10 +231,10 @@ private fun RecipeMainContent(
                 selectedCategoryId = selectedCategoryId,
                 onCategorySelected = { categoryId ->
                     selectedCategoryId = categoryId
-                    // 滚动到对应分类的起始位置
+                    // 滚动到对应分类的起始位置（使用非动画滚动减少卡顿）
                     categoryStartIndices[categoryId]?.let { startIndex ->
                         scope.launch {
-                            listState.animateScrollToItem(startIndex)
+                            listState.scrollToItem(startIndex)
                         }
                     }
                 },
@@ -373,7 +377,10 @@ private fun CategorySideBar(
         LazyColumn(
             modifier = Modifier.weight(1f)
         ) {
-            items(categories) { category ->
+            items(
+                items = categories,
+                key = { it.id }
+            ) { category ->
                 CategorySideItem(
                     name = category.name,
                     count = category.recipeCount,
