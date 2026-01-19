@@ -85,7 +85,7 @@ private fun BottomNavigationBar(
                     .weight(1f)
                     .fillMaxHeight()
                     .background(
-                        if (selectedTab == 0) Color(0xFFFFF0EB) else Color.Transparent
+                        if (selectedTab == 0) Primary else Color.Transparent
                     )
                     .clickable { onTabSelected(0) },
                 contentAlignment = Alignment.Center
@@ -94,7 +94,7 @@ private fun BottomNavigationBar(
                     text = "菜谱",
                     fontSize = 15.sp,
                     fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                    color = if (selectedTab == 0) Color(0xFFFF6B35) else Color(0xFF9E9E9E)
+                    color = if (selectedTab == 0) Color.White else Gray500
                 )
             }
             
@@ -104,7 +104,7 @@ private fun BottomNavigationBar(
                     .weight(1f)
                     .fillMaxHeight()
                     .background(
-                        if (selectedTab == 1) Color(0xFFFFF0EB) else Color.Transparent
+                        if (selectedTab == 1) Primary else Color.Transparent
                     )
                     .clickable { onTabSelected(1) },
                 contentAlignment = Alignment.Center
@@ -113,7 +113,7 @@ private fun BottomNavigationBar(
                     text = "我的",
                     fontSize = 15.sp,
                     fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                    color = if (selectedTab == 1) Color(0xFFFF6B35) else Color(0xFF9E9E9E)
+                    color = if (selectedTab == 1) Color.White else Gray500
                 )
             }
         }
@@ -220,7 +220,7 @@ private fun RecipeMainContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(Background)
     ) {
         // 顶部区域
         TopHeaderSection(
@@ -276,7 +276,7 @@ private fun RecipeMainContent(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(20.dp),
-                    containerColor = Color(0xFFFF6B35),
+                    containerColor = Primary,
                     contentColor = Color.White,
                     elevation = FloatingActionButtonDefaults.elevation(
                         defaultElevation = 6.dp,
@@ -305,8 +305,8 @@ private fun TopHeaderSection(
             .background(
                 brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                     colors = listOf(
-                        Color(0xFFFF6B35),
-                        Color(0xFFFF8555)
+                        Primary,
+                        PrimaryLight
                     )
                 )
             )
@@ -397,7 +397,7 @@ private fun CategorySideBar(
         }
         
         // 分类管理按钮
-        Divider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+        Divider(color = Divider, thickness = 1.dp)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -413,14 +413,14 @@ private fun CategorySideBar(
                 Icon(
                     Icons.Default.Settings,
                     contentDescription = "分类管理",
-                    tint = Color(0xFFFF6B35),
+                    tint = Primary,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "分类管理",
                     fontSize = 11.sp,
-                    color = Color(0xFFFF6B35),
+                    color = Primary,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -439,9 +439,7 @@ private fun CategorySideItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .background(
-                if (isSelected) Color(0xFFFFE8E0) else Color.Transparent
-            )
+            .background(Color.Transparent)
             .padding(vertical = 16.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -453,7 +451,7 @@ private fun CategorySideItem(
                 text = name,
                 fontSize = 15.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color(0xFFFF6B35) else Color(0xFF616161),
+                color = if (isSelected) Primary else Gray700,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -462,7 +460,7 @@ private fun CategorySideItem(
                 Text(
                     text = "$count",
                     fontSize = 11.sp,
-                    color = if (isSelected) Color(0xFFFF6B35) else Color(0xFF9E9E9E),
+                    color = if (isSelected) Primary else Gray500,
                     fontWeight = FontWeight.Normal
                 )
             }
@@ -474,7 +472,7 @@ private fun CategorySideItem(
                     .width(4.dp)
                     .height(32.dp)
                     .background(
-                        Color(0xFFFF6B35),
+                        Primary,
                         RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
                     )
                     .align(Alignment.CenterStart)
@@ -496,7 +494,7 @@ private fun RecipeContentArea(
         state = listState,
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5)),
+            .background(Background),
         // 添加flingBehavior优化滑动体验
         flingBehavior = androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
     ) {
@@ -631,7 +629,7 @@ private fun RecipeCardItem(
                     Icon(
                         Icons.Default.Edit,
                         contentDescription = "编辑",
-                        tint = Color(0xFFFF6B35),
+                        tint = Primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -643,7 +641,7 @@ private fun RecipeCardItem(
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "删除",
-                        tint = Color(0xFFFF5252),
+                        tint = DeleteColor,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -657,7 +655,7 @@ private fun ProfileScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8F9FA))
+            .background(Background)
     ) {
         // 顶部个人信息区域
         Box(
@@ -666,8 +664,8 @@ private fun ProfileScreen(navController: NavController) {
                 .background(
                     brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                         colors = listOf(
-                            Color(0xFFFF6B35),
-                            Color(0xFFFF8555)
+                            Primary,
+                            PrimaryLight
                         )
                     )
                 )
@@ -763,13 +761,13 @@ private fun ProfileMenuItem(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFFFE8E0)),
+                    .background(Primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = Color(0xFFFF6B35),
+                    tint = Primary,
                     modifier = Modifier.size(24.dp)
                 )
             }
