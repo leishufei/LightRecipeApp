@@ -24,6 +24,7 @@ import com.recipe.manager.data.entity.*
 import com.recipe.manager.ui.components.*
 import com.recipe.manager.ui.theme.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -153,7 +154,7 @@ fun BackupScreen(navController: NavController) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "• 导出功能会将所有分类和菜谱数据保存为 JSON 文件\n" +
-                                   "• 导入功能会覆盖现有数据，请谨慎操作\n" +
+                                   "• 导入时会根据名称匹配，新数据会覆盖旧数据\n" +
                                    "• 建议定期备份，防止数据丢失",
                             style = MaterialTheme.typography.bodySmall,
                             color = DarkGray
@@ -281,7 +282,7 @@ fun BackupScreen(navController: NavController) {
     if (showImportConfirm) {
         ConfirmDialog(
             title = "确认导入",
-            message = "导入数据将覆盖现有的所有分类和菜谱，此操作不可撤销。确定要继续吗？",
+            message = "导入时会根据名称匹配现有数据，较新的数据会覆盖较旧的数据。确定要继续吗？",
             confirmText = "确定导入",
             onConfirm = {
                 showImportConfirm = false
@@ -299,20 +300,9 @@ fun BackupScreen(navController: NavController) {
 private suspend fun exportData(context: Context): BackupData = withContext(Dispatchers.IO) {
     val db = RecipeDatabase.getDatabase(context)
     
-    // 使用 suspend 函数获取数据
-    val categoriesFlow = db.categoryDao().getAllCategories()
-    var categories = emptyList<Category>()
-    categoriesFlow.collect { 
-        categories = it 
-        return@collect
-    }
-    
-    val recipesFlow = db.recipeDao().getAllRecipes()
-    var recipes = emptyList<Recipe>()
-    recipesFlow.collect { 
-        recipes = it 
-        return@collect
-    }
+    // 使用 first() 获取数据
+    val categories = db.categoryDao().getAllCategories().first()
+    val recipes = db.recipeDao().getAllRecipes().first()
     
     val allIngredients = mutableListOf<Ingredient>()
     val allSteps = mutableListOf<Step>()
@@ -335,32 +325,85 @@ private suspend fun exportData(context: Context): BackupData = withContext(Dispa
 private suspend fun importData(context: Context, data: BackupData) = withContext(Dispatchers.IO) {
     val db = RecipeDatabase.getDatabase(context)
     
+    // 获取现有数据
+    val existingCategories = db.categoryDao().getAllCategories().first()
+    val existingRecipes = db.recipeDao().getAllRecipes().first()
+    
     // 创建 ID 映射（旧ID -> 新ID）
     val categoryIdMap = mutableMapOf<Long, Long>()
     val recipeIdMap = mutableMapOf<Long, Long>()
     
-    // 导入分类
-    data.categories.forEach { category ->
-        val newId = db.categoryDao().insert(category.copy(id = 0))
-        categoryIdMap[category.id] = newId
+    // 导入分类（根据名称匹配，根据修改时间决定是否覆盖）
+    data.categories.forEach { importCategory ->
+        val existingCategory = existingCategories.find { it.name == importCategory.name }
+        
+        if (existingCategory != null) {
+            // 已存在同名分类，比较修改时间
+            if (importCategory.updatedAt > existingCategory.updatedAt) {
+                // 导入的数据更新，覆盖
+                db.categoryDao().update(existingCategory.copy(
+                    name = importCategory.name,
+                    updatedAt = importCategory.updatedAt
+                ))
+            }
+            // 使用现有分类的ID
+            categoryIdMap[importCategory.id] = existingCategory.id
+        } else {
+            // 不存在，新增
+            val newId = db.categoryDao().insert(importCategory.copy(id = 0))
+            categoryIdMap[importCategory.id] = newId
+        }
     }
     
-    // 导入菜谱（更新分类ID）
-    data.recipes.forEach { recipe ->
-        val newCategoryId = categoryIdMap[recipe.categoryId] ?: recipe.categoryId
-        val newId = db.recipeDao().insert(recipe.copy(id = 0, categoryId = newCategoryId))
-        recipeIdMap[recipe.id] = newId
-    }
-    
-    // 导入用料（更新菜谱ID）
-    data.ingredients.forEach { ingredient ->
-        val newRecipeId = recipeIdMap[ingredient.recipeId] ?: ingredient.recipeId
-        db.ingredientDao().insert(ingredient.copy(id = 0, recipeId = newRecipeId))
-    }
-    
-    // 导入步骤（更新菜谱ID）
-    data.steps.forEach { step ->
-        val newRecipeId = recipeIdMap[step.recipeId] ?: step.recipeId
-        db.stepDao().insert(step.copy(id = 0, recipeId = newRecipeId))
+    // 导入菜谱（根据名称和分类匹配，根据修改时间决定是否覆盖）
+    data.recipes.forEach { importRecipe ->
+        val newCategoryId = categoryIdMap[importRecipe.categoryId] ?: importRecipe.categoryId
+        val existingRecipe = existingRecipes.find { 
+            it.name == importRecipe.name && it.categoryId == newCategoryId 
+        }
+        
+        if (existingRecipe != null) {
+            // 已存在同名菜谱，比较修改时间
+            if (importRecipe.updatedAt > existingRecipe.updatedAt) {
+                // 导入的数据更新，覆盖
+                db.recipeDao().update(existingRecipe.copy(
+                    name = importRecipe.name,
+                    coverImagePath = importRecipe.coverImagePath,
+                    isFavorite = importRecipe.isFavorite,
+                    clickCount = importRecipe.clickCount,
+                    updatedAt = importRecipe.updatedAt
+                ))
+                
+                // 删除旧的用料和步骤
+                db.ingredientDao().deleteByRecipeId(existingRecipe.id)
+                db.stepDao().deleteByRecipeId(existingRecipe.id)
+                
+                // 导入新的用料
+                data.ingredients.filter { it.recipeId == importRecipe.id }.forEach { ingredient ->
+                    db.ingredientDao().insert(ingredient.copy(id = 0, recipeId = existingRecipe.id))
+                }
+                
+                // 导入新的步骤
+                data.steps.filter { it.recipeId == importRecipe.id }.forEach { step ->
+                    db.stepDao().insert(step.copy(id = 0, recipeId = existingRecipe.id))
+                }
+            }
+            // 使用现有菜谱的ID
+            recipeIdMap[importRecipe.id] = existingRecipe.id
+        } else {
+            // 不存在，新增
+            val newId = db.recipeDao().insert(importRecipe.copy(id = 0, categoryId = newCategoryId))
+            recipeIdMap[importRecipe.id] = newId
+            
+            // 导入用料
+            data.ingredients.filter { it.recipeId == importRecipe.id }.forEach { ingredient ->
+                db.ingredientDao().insert(ingredient.copy(id = 0, recipeId = newId))
+            }
+            
+            // 导入步骤
+            data.steps.filter { it.recipeId == importRecipe.id }.forEach { step ->
+                db.stepDao().insert(step.copy(id = 0, recipeId = newId))
+            }
+        }
     }
 }
