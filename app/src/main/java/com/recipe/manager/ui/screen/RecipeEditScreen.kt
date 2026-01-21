@@ -284,7 +284,7 @@ fun RecipeEditScreen(
             item {
                 CategorySelector(
                     categories = categoryState.categories.map { 
-                        Category(it.id, it.name, it.createdAt, it.updatedAt) 
+                        Category(it.id, it.name, it.sortOrder, it.createdAt, it.updatedAt) 
                     },
                     selectedId = selectedCategoryId,
                     onSelect = { selectedCategoryId = it },

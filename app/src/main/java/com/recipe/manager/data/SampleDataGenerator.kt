@@ -113,9 +113,10 @@ object SampleDataGenerator {
         
         // 1. 创建10个分类
         val categoryIds = mutableListOf<Long>()
-        categoryNames.forEach { name ->
+        categoryNames.forEachIndexed { index, name ->
             val category = Category(
                 name = name,
+                sortOrder = index + 1,
                 createdAt = currentTime,
                 updatedAt = currentTime
             )

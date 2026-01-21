@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -67,6 +67,18 @@ fun CategoryListScreen(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false }
                             ) {
+                                DropdownMenuItem(
+                                    text = { Text("自定义排序") },
+                                    onClick = {
+                                        viewModel.setSortOrder(CategorySortOrder.BY_CUSTOM_ORDER)
+                                        showSortMenu = false
+                                    },
+                                    leadingIcon = {
+                                        if (uiState.sortOrder == CategorySortOrder.BY_CUSTOM_ORDER) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = Primary)
+                                        }
+                                    }
+                                )
                                 DropdownMenuItem(
                                     text = { Text("按创建时间") },
                                     onClick = {
@@ -131,11 +143,14 @@ fun CategoryListScreen(
                     .background(Background),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                items(uiState.categories, key = { it.id }) { category ->
+                itemsIndexed(uiState.categories, key = { _, item -> item.id }) { index, category ->
                     CategoryListItem(
                         category = category,
                         isSelectionMode = uiState.isSelectionMode,
                         isSelected = uiState.selectedIds.contains(category.id),
+                        isFirst = index == 0,
+                        isLast = index == uiState.categories.size - 1,
+                        showMoveButtons = uiState.sortOrder == CategorySortOrder.BY_CUSTOM_ORDER,
                         onLongClick = { viewModel.toggleSelection(category.id) },
                         onClick = {
                             if (uiState.isSelectionMode) {
@@ -143,7 +158,9 @@ fun CategoryListScreen(
                             }
                         },
                         onEdit = { editingCategory = category },
-                        onDelete = { deletingCategory = category }
+                        onDelete = { deletingCategory = category },
+                        onMoveUp = { viewModel.moveUp(category) },
+                        onMoveDown = { viewModel.moveDown(category) }
                     )
                 }
             }
@@ -219,10 +236,15 @@ private fun CategoryListItem(
     category: CategoryWithCount,
     isSelectionMode: Boolean,
     isSelected: Boolean,
+    isFirst: Boolean,
+    isLast: Boolean,
+    showMoveButtons: Boolean,
     onLongClick: () -> Unit,
     onClick: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
     
@@ -242,7 +264,7 @@ private fun CategoryListItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isSelectionMode) {
@@ -275,17 +297,45 @@ private fun CategoryListItem(
             }
             
             if (!isSelectionMode) {
+                // 上移/下移按钮（仅在自定义排序模式下显示）
+                if (showMoveButtons) {
+                    IconButton(
+                        onClick = onMoveUp,
+                        enabled = !isFirst,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowUp,
+                            contentDescription = "上移",
+                            tint = if (isFirst) MediumGray.copy(alpha = 0.4f) else Primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onMoveDown,
+                        enabled = !isLast,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = "下移",
+                            tint = if (isLast) MediumGray.copy(alpha = 0.4f) else Primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                
                 IconButton(
                     onClick = onEdit,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = Primary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = Primary, modifier = Modifier.size(18.dp))
                 }
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = Error, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = Error, modifier = Modifier.size(18.dp))
                 }
             }
         }

@@ -11,14 +11,15 @@ import kotlinx.coroutines.launch
 
 enum class CategorySortOrder {
     BY_CREATED_TIME,
-    BY_RECIPE_COUNT
+    BY_RECIPE_COUNT,
+    BY_CUSTOM_ORDER
 }
 
 data class CategoryUiState(
     val categories: List<CategoryWithCount> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val sortOrder: CategorySortOrder = CategorySortOrder.BY_CREATED_TIME,
+    val sortOrder: CategorySortOrder = CategorySortOrder.BY_CUSTOM_ORDER,
     val selectedIds: Set<Long> = emptySet(),
     val isSelectionMode: Boolean = false
 )
@@ -28,10 +29,17 @@ class CategoryViewModel(private val repository: CategoryRepository) : ViewModel(
     private val _uiState = MutableStateFlow(CategoryUiState())
     val uiState: StateFlow<CategoryUiState> = _uiState.asStateFlow()
     
-    private val _sortOrder = MutableStateFlow(CategorySortOrder.BY_CREATED_TIME)
+    private val _sortOrder = MutableStateFlow(CategorySortOrder.BY_CUSTOM_ORDER)
     
     init {
+        initializeSortOrderIfNeeded()
         loadCategories()
+    }
+    
+    private fun initializeSortOrderIfNeeded() {
+        viewModelScope.launch {
+            repository.initializeSortOrderIfNeeded()
+        }
     }
     
     private fun loadCategories() {
@@ -41,6 +49,7 @@ class CategoryViewModel(private val repository: CategoryRepository) : ViewModel(
                 when (sortOrder) {
                     CategorySortOrder.BY_CREATED_TIME -> repository.getCategoriesWithCount()
                     CategorySortOrder.BY_RECIPE_COUNT -> repository.getCategoriesOrderByRecipeCount()
+                    CategorySortOrder.BY_CUSTOM_ORDER -> repository.getCategoriesOrderBySortOrder()
                 }
             }.collect { categories ->
                 _uiState.update { 
@@ -62,7 +71,8 @@ class CategoryViewModel(private val repository: CategoryRepository) : ViewModel(
                 onResult(false, "分类名称已存在")
                 return@launch
             }
-            val category = Category(name = name.trim())
+            val maxSortOrder = repository.getMaxSortOrder()
+            val category = Category(name = name.trim(), sortOrder = maxSortOrder + 1)
             repository.insertCategory(category)
             onResult(true, "添加成功")
         }
@@ -92,6 +102,38 @@ class CategoryViewModel(private val repository: CategoryRepository) : ViewModel(
                 repository.deleteCategory(cat)
                 onResult(true, "删除成功")
             }
+        }
+    }
+    
+    fun moveUp(category: CategoryWithCount) {
+        viewModelScope.launch {
+            val categories = _uiState.value.categories
+            val index = categories.indexOfFirst { it.id == category.id }
+            if (index > 0) {
+                swapCategories(categories[index], categories[index - 1])
+            }
+        }
+    }
+    
+    fun moveDown(category: CategoryWithCount) {
+        viewModelScope.launch {
+            val categories = _uiState.value.categories
+            val index = categories.indexOfFirst { it.id == category.id }
+            if (index >= 0 && index < categories.size - 1) {
+                swapCategories(categories[index], categories[index + 1])
+            }
+        }
+    }
+    
+    private suspend fun swapCategories(cat1: CategoryWithCount, cat2: CategoryWithCount) {
+        val category1 = repository.getCategoryById(cat1.id)
+        val category2 = repository.getCategoryById(cat2.id)
+        if (category1 != null && category2 != null) {
+            val tempOrder = category1.sortOrder
+            repository.updateCategoriesOrder(listOf(
+                category1.copy(sortOrder = category2.sortOrder),
+                category2.copy(sortOrder = tempOrder)
+            ))
         }
     }
     

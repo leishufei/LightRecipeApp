@@ -38,6 +38,7 @@ data class RecipeWithCategory(
 data class CategoryWithCount(
     val id: Long,
     val name: String,
+    val sortOrder: Int,
     val createdAt: Long,
     val updatedAt: Long,
     val recipeCount: Int
