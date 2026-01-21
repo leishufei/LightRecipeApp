@@ -432,45 +432,52 @@ private fun CategorySideItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .background(
+                if (isSelected) Background else Color.White
+            )
             .clickable(onClick = onClick)
-            .background(Color.Transparent)
-            .padding(vertical = 16.dp, horizontal = 8.dp),
+            .padding(vertical = 18.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = name,
-                fontSize = 15.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Primary else Gray700,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            // 左侧选中指示条
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(28.dp)
+                    .background(
+                        if (isSelected) Primary else Color.Transparent
+                    )
             )
-            if (count > 0) {
+            
+            Spacer(modifier = Modifier.width(6.dp))
+            
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = name,
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) Primary else Gray700,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "$count",
+                    text = if (count > 0) "$count" else "0",
                     fontSize = 11.sp,
                     color = if (isSelected) Primary else Gray500,
                     fontWeight = FontWeight.Normal
                 )
             }
-        }
-        
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(32.dp)
-                    .background(
-                        Primary,
-                        RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
-                    )
-                    .align(Alignment.CenterStart)
-            )
+            
+            Spacer(modifier = Modifier.width(9.dp))
         }
     }
 }
