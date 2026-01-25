@@ -324,6 +324,7 @@ private suspend fun exportData(context: Context): BackupData = withContext(Dispa
 
 private suspend fun importData(context: Context, data: BackupData) = withContext(Dispatchers.IO) {
     val db = RecipeDatabase.getDatabase(context)
+    val currentTime = System.currentTimeMillis()
     
     // 获取现有数据
     val existingCategories = db.categoryDao().getAllCategories().first()
@@ -333,20 +334,13 @@ private suspend fun importData(context: Context, data: BackupData) = withContext
     val categoryIdMap = mutableMapOf<Long, Long>()
     val recipeIdMap = mutableMapOf<Long, Long>()
     
-    // 导入分类（根据名称匹配，根据修改时间决定是否覆盖）
+    // 导入分类（根据名称匹配）
     data.categories.forEach { importCategory ->
         val existingCategory = existingCategories.find { it.name == importCategory.name }
         
         if (existingCategory != null) {
-            // 已存在同名分类，比较修改时间
-            if (importCategory.updatedAt > existingCategory.updatedAt) {
-                // 导入的数据更新，覆盖
-                db.categoryDao().update(existingCategory.copy(
-                    name = importCategory.name,
-                    updatedAt = importCategory.updatedAt
-                ))
-            }
-            // 使用现有分类的ID
+            // 已存在同名分类，更新时间
+            db.categoryDao().update(existingCategory.copy(updatedAt = currentTime))
             categoryIdMap[importCategory.id] = existingCategory.id
         } else {
             // 不存在，新增
@@ -355,7 +349,7 @@ private suspend fun importData(context: Context, data: BackupData) = withContext
         }
     }
     
-    // 导入菜谱（根据名称和分类匹配，根据修改时间决定是否覆盖）
+    // 导入菜谱（根据名称和分类匹配，同分类同名则覆盖）
     data.recipes.forEach { importRecipe ->
         val newCategoryId = categoryIdMap[importRecipe.categoryId] ?: importRecipe.categoryId
         val existingRecipe = existingRecipes.find { 
@@ -363,32 +357,27 @@ private suspend fun importData(context: Context, data: BackupData) = withContext
         }
         
         if (existingRecipe != null) {
-            // 已存在同名菜谱，比较修改时间
-            if (importRecipe.updatedAt > existingRecipe.updatedAt) {
-                // 导入的数据更新，覆盖
-                db.recipeDao().update(existingRecipe.copy(
-                    name = importRecipe.name,
-                    coverImagePath = importRecipe.coverImagePath,
-                    isFavorite = importRecipe.isFavorite,
-                    clickCount = importRecipe.clickCount,
-                    updatedAt = importRecipe.updatedAt
-                ))
-                
-                // 删除旧的用料和步骤
-                db.ingredientDao().deleteByRecipeId(existingRecipe.id)
-                db.stepDao().deleteByRecipeId(existingRecipe.id)
-                
-                // 导入新的用料
-                data.ingredients.filter { it.recipeId == importRecipe.id }.forEach { ingredient ->
-                    db.ingredientDao().insert(ingredient.copy(id = 0, recipeId = existingRecipe.id))
-                }
-                
-                // 导入新的步骤
-                data.steps.filter { it.recipeId == importRecipe.id }.forEach { step ->
-                    db.stepDao().insert(step.copy(id = 0, recipeId = existingRecipe.id))
-                }
+            // 已存在同分类同名菜谱，覆盖（保留创建时间，更新修改时间）
+            db.recipeDao().update(existingRecipe.copy(
+                coverImagePath = importRecipe.coverImagePath,
+                updatedAt = currentTime
+                // 保留原有的 createdAt、isFavorite、clickCount
+            ))
+            
+            // 删除旧的用料和步骤
+            db.ingredientDao().deleteByRecipeId(existingRecipe.id)
+            db.stepDao().deleteByRecipeId(existingRecipe.id)
+            
+            // 导入新的用料
+            data.ingredients.filter { it.recipeId == importRecipe.id }.forEach { ingredient ->
+                db.ingredientDao().insert(ingredient.copy(id = 0, recipeId = existingRecipe.id))
             }
-            // 使用现有菜谱的ID
+            
+            // 导入新的步骤
+            data.steps.filter { it.recipeId == importRecipe.id }.forEach { step ->
+                db.stepDao().insert(step.copy(id = 0, recipeId = existingRecipe.id))
+            }
+            
             recipeIdMap[importRecipe.id] = existingRecipe.id
         } else {
             // 不存在，新增
