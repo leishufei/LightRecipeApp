@@ -28,16 +28,43 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
+import android.util.Base64
 
 data class BackupData(
     val version: Int = 1,
     val exportTime: Long = System.currentTimeMillis(),
     val categories: List<Category> = emptyList(),
-    val recipes: List<Recipe> = emptyList(),
+    val recipes: List<RecipeBackup> = emptyList(),
     val ingredients: List<Ingredient> = emptyList(),
     val steps: List<Step> = emptyList()
 )
+
+// 扩展的菜谱备份数据，支持 base64 封面图
+data class RecipeBackup(
+    val id: Long = 0,
+    val name: String,
+    val categoryId: Long,
+    val coverImagePath: String? = null,
+    val coverImageBase64: String? = null,  // base64 编码的封面图
+    val clickCount: Int = 0,
+    val isFavorite: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+) {
+    fun toRecipe() = Recipe(
+        id = id,
+        name = name,
+        categoryId = categoryId,
+        coverImagePath = coverImagePath,
+        clickCount = clickCount,
+        isFavorite = isFavorite,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -316,10 +343,67 @@ private suspend fun exportData(context: Context): BackupData = withContext(Dispa
     
     BackupData(
         categories = categories,
-        recipes = recipes,
+        recipes = recipes.map { recipe ->
+            RecipeBackup(
+                id = recipe.id,
+                name = recipe.name,
+                categoryId = recipe.categoryId,
+                coverImagePath = null,  // 不导出路径，使用 base64
+                coverImageBase64 = encodeImageToBase64(recipe.coverImagePath),
+                clickCount = recipe.clickCount,
+                isFavorite = recipe.isFavorite,
+                createdAt = recipe.createdAt,
+                updatedAt = recipe.updatedAt
+            )
+        },
         ingredients = allIngredients,
         steps = allSteps
     )
+}
+
+// 将图片文件编码为 base64
+private fun encodeImageToBase64(imagePath: String?): String? {
+    if (imagePath.isNullOrEmpty()) return null
+    
+    val file = File(imagePath)
+    if (!file.exists()) return null
+    
+    return try {
+        val bytes = file.readBytes()
+        val base64Str = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        "data:image/jpeg;base64,$base64Str"
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+// 将 base64 图片保存到文件
+private fun saveBase64Image(context: Context, base64Data: String, recipeName: String): String? {
+    return try {
+        // 去除 data:image/xxx;base64, 前缀
+        val base64Content = if (base64Data.contains(",")) {
+            base64Data.substringAfter(",")
+        } else {
+            base64Data
+        }
+        
+        val imageBytes = Base64.decode(base64Content, Base64.DEFAULT)
+        val imageDir = File(context.filesDir, "images")
+        if (!imageDir.exists()) imageDir.mkdirs()
+        
+        val fileName = "cover_${recipeName.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5]"), "_")}_${System.currentTimeMillis()}.jpg"
+        val file = File(imageDir, fileName)
+        
+        FileOutputStream(file).use { output ->
+            output.write(imageBytes)
+        }
+        
+        file.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
 }
 
 private suspend fun importData(context: Context, data: BackupData) = withContext(Dispatchers.IO) {
@@ -356,10 +440,17 @@ private suspend fun importData(context: Context, data: BackupData) = withContext
             it.name == importRecipe.name && it.categoryId == newCategoryId 
         }
         
+        // 处理封面图：如果有 base64 图片，保存到文件
+        val coverImagePath = if (!importRecipe.coverImageBase64.isNullOrEmpty()) {
+            saveBase64Image(context, importRecipe.coverImageBase64, importRecipe.name)
+        } else {
+            importRecipe.coverImagePath
+        }
+        
         if (existingRecipe != null) {
             // 已存在同分类同名菜谱，覆盖（保留创建时间，更新修改时间）
             db.recipeDao().update(existingRecipe.copy(
-                coverImagePath = importRecipe.coverImagePath,
+                coverImagePath = coverImagePath ?: existingRecipe.coverImagePath,
                 updatedAt = currentTime
                 // 保留原有的 createdAt、isFavorite、clickCount
             ))
@@ -381,7 +472,12 @@ private suspend fun importData(context: Context, data: BackupData) = withContext
             recipeIdMap[importRecipe.id] = existingRecipe.id
         } else {
             // 不存在，新增
-            val newId = db.recipeDao().insert(importRecipe.copy(id = 0, categoryId = newCategoryId))
+            val recipe = importRecipe.toRecipe().copy(
+                id = 0, 
+                categoryId = newCategoryId,
+                coverImagePath = coverImagePath
+            )
+            val newId = db.recipeDao().insert(recipe)
             recipeIdMap[importRecipe.id] = newId
             
             // 导入用料

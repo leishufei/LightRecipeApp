@@ -2,6 +2,7 @@ package com.recipe.manager.ui.screen
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -117,21 +118,31 @@ fun RecipeEditScreen(
         }
     }
     
-    // 图片选择器
+    // 图片选择器 - 使用 ACTION_PICK 调用系统相册（支持浏览所有相册分类）
     val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            val path = saveImageToPrivate(context, it)
-            if (currentStepIndex == -1) {
-                coverImagePath = path
-            } else {
-                steps = steps.toMutableList().also { list ->
-                    list[currentStepIndex] = list[currentStepIndex].copy(imagePath = path)
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                val path = saveImageToPrivate(context, uri)
+                if (currentStepIndex == -1) {
+                    coverImagePath = path
+                } else {
+                    steps = steps.toMutableList().also { list ->
+                        list[currentStepIndex] = list[currentStepIndex].copy(imagePath = path)
+                    }
                 }
             }
         }
         showImagePicker = false
+    }
+    
+    // 选择图片的函数
+    fun launchImagePicker() {
+        val intent = Intent(Intent.ACTION_PICK).apply {
+            type = "image/*"
+        }
+        galleryLauncher.launch(intent)
     }
     
     // 相机拍照
@@ -375,7 +386,7 @@ fun RecipeEditScreen(
                 cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             },
             onGalleryClick = {
-                galleryLauncher.launch("image/*")
+                launchImagePicker()
             }
         )
     }
