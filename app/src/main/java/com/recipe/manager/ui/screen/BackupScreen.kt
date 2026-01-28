@@ -1,7 +1,7 @@
 package com.recipe.manager.ui.screen
 
 import android.content.Context
-import android.content.Intent
+import android.util.Base64
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,48 +23,52 @@ import com.recipe.manager.data.database.RecipeDatabase
 import com.recipe.manager.data.entity.*
 import com.recipe.manager.ui.components.*
 import com.recipe.manager.ui.theme.*
+import com.recipe.manager.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
-import java.io.FileOutputStream
 import java.io.InputStreamReader
-import android.util.Base64
 
+/**
+ * 备份数据结构（含图片 Base64）
+ */
 data class BackupData(
-    val version: Int = 1,
+    val version: Int = 2,
     val exportTime: Long = System.currentTimeMillis(),
     val categories: List<Category> = emptyList(),
     val recipes: List<RecipeBackup> = emptyList(),
     val ingredients: List<Ingredient> = emptyList(),
-    val steps: List<Step> = emptyList()
+    val steps: List<StepBackup> = emptyList()
 )
 
-// 扩展的菜谱备份数据，支持 base64 封面图
+/**
+ * 菜谱备份（含封面图 Base64）
+ */
 data class RecipeBackup(
-    val id: Long = 0,
+    val id: Long,
     val name: String,
     val categoryId: Long,
-    val coverImagePath: String? = null,
-    val coverImageBase64: String? = null,  // base64 编码的封面图
+    val coverImageBase64: String? = null,
     val clickCount: Int = 0,
     val isFavorite: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
-) {
-    fun toRecipe() = Recipe(
-        id = id,
-        name = name,
-        categoryId = categoryId,
-        coverImagePath = coverImagePath,
-        clickCount = clickCount,
-        isFavorite = isFavorite,
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
-}
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+/**
+ * 步骤备份（含步骤图 Base64）
+ */
+data class StepBackup(
+    val id: Long,
+    val recipeId: Long,
+    val description: String,
+    val imageBase64: String? = null,
+    val stepNumber: Int,
+    val sortOrder: Int = 0
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +80,7 @@ fun BackupScreen(navController: NavController) {
     var showImportConfirm by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
     
-    val gson = remember { GsonBuilder().setPrettyPrinting().create() }
+    val gson = remember { GsonBuilder().create() }
     
     // 导出文件选择器
     val exportLauncher = rememberLauncherForActivityResult(
@@ -86,15 +90,16 @@ fun BackupScreen(navController: NavController) {
             scope.launch {
                 isExporting = true
                 try {
-                    val backupData = exportData(context)
+                    val backupData = exportDataWithImages(context)
                     val json = gson.toJson(backupData)
                     context.contentResolver.openOutputStream(uri)?.use { output ->
-                        output.write(json.toByteArray())
+                        output.write(json.toByteArray(Charsets.UTF_8))
                     }
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
+                    e.printStackTrace()
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -124,12 +129,13 @@ fun BackupScreen(navController: NavController) {
                 } ?: throw Exception("无法读取文件")
                 
                 val backupData = gson.fromJson(json, BackupData::class.java)
-                importData(context, backupData)
+                importDataWithImages(context, backupData)
                 
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "导入成功", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
+                e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
@@ -180,8 +186,8 @@ fun BackupScreen(navController: NavController) {
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "• 导出功能会将所有分类和菜谱数据保存为 JSON 文件\n" +
-                                   "• 导入时会根据名称匹配，新数据会覆盖旧数据\n" +
+                            text = "• 导出会将所有数据和图片保存为 JSON 文件\n" +
+                                   "• 导入时会根据名称匹配，新数据覆盖旧数据\n" +
                                    "• 建议定期备份，防止数据丢失",
                             style = MaterialTheme.typography.bodySmall,
                             color = DarkGray
@@ -222,7 +228,7 @@ fun BackupScreen(navController: NavController) {
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "将菜谱数据导出为 JSON 文件",
+                            text = "将菜谱数据和图片导出为 JSON 文件",
                             style = MaterialTheme.typography.bodySmall,
                             color = MediumGray
                         )
@@ -324,161 +330,136 @@ fun BackupScreen(navController: NavController) {
     }
 }
 
-private suspend fun exportData(context: Context): BackupData = withContext(Dispatchers.IO) {
+/**
+ * 导出数据（含图片 Base64）
+ */
+private suspend fun exportDataWithImages(context: Context): BackupData = withContext(Dispatchers.IO) {
     val db = RecipeDatabase.getDatabase(context)
     
-    // 使用 first() 获取数据
     val categories = db.categoryDao().getAllCategories().first()
     val recipes = db.recipeDao().getAllRecipes().first()
     
     val allIngredients = mutableListOf<Ingredient>()
-    val allSteps = mutableListOf<Step>()
+    val allSteps = mutableListOf<StepBackup>()
     
-    recipes.forEach { recipe ->
+    val recipeBackups = recipes.map { recipe ->
         val ingredients = db.ingredientDao().getIngredientsByRecipeSync(recipe.id)
         val steps = db.stepDao().getStepsByRecipeSync(recipe.id)
         allIngredients.addAll(ingredients)
-        allSteps.addAll(steps)
+        
+        // 转换步骤，包含图片 Base64
+        val stepBackups = steps.map { step ->
+            StepBackup(
+                id = step.id,
+                recipeId = step.recipeId,
+                description = step.description,
+                imageBase64 = encodeImageToBase64(step.imagePath),
+                stepNumber = step.stepNumber,
+                sortOrder = step.sortOrder
+            )
+        }
+        allSteps.addAll(stepBackups)
+        
+        // 转换菜谱，包含封面图 Base64
+        RecipeBackup(
+            id = recipe.id,
+            name = recipe.name,
+            categoryId = recipe.categoryId,
+            coverImageBase64 = encodeImageToBase64(recipe.coverImagePath),
+            clickCount = recipe.clickCount,
+            isFavorite = recipe.isFavorite,
+            createdAt = recipe.createdAt,
+            updatedAt = recipe.updatedAt
+        )
     }
     
     BackupData(
         categories = categories,
-        recipes = recipes.map { recipe ->
-            RecipeBackup(
-                id = recipe.id,
-                name = recipe.name,
-                categoryId = recipe.categoryId,
-                coverImagePath = null,  // 不导出路径，使用 base64
-                coverImageBase64 = encodeImageToBase64(recipe.coverImagePath),
-                clickCount = recipe.clickCount,
-                isFavorite = recipe.isFavorite,
-                createdAt = recipe.createdAt,
-                updatedAt = recipe.updatedAt
-            )
-        },
+        recipes = recipeBackups,
         ingredients = allIngredients,
         steps = allSteps
     )
 }
 
-// 将图片文件编码为 base64
-private fun encodeImageToBase64(imagePath: String?): String? {
-    if (imagePath.isNullOrEmpty()) return null
-    
-    val file = File(imagePath)
-    if (!file.exists()) return null
-    
-    return try {
-        val bytes = file.readBytes()
-        val base64Str = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        "data:image/jpeg;base64,$base64Str"
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
-}
-
-// 将 base64 图片保存到文件
-private fun saveBase64Image(context: Context, base64Data: String, recipeName: String): String? {
-    return try {
-        // 去除 data:image/xxx;base64, 前缀
-        val base64Content = if (base64Data.contains(",")) {
-            base64Data.substringAfter(",")
-        } else {
-            base64Data
-        }
-        
-        val imageBytes = Base64.decode(base64Content, Base64.DEFAULT)
-        val imageDir = File(context.filesDir, "images")
-        if (!imageDir.exists()) imageDir.mkdirs()
-        
-        val fileName = "cover_${recipeName.replace(Regex("[^a-zA-Z0-9\\u4e00-\\u9fa5]"), "_")}_${System.currentTimeMillis()}.jpg"
-        val file = File(imageDir, fileName)
-        
-        FileOutputStream(file).use { output ->
-            output.write(imageBytes)
-        }
-        
-        file.absolutePath
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
-}
-
-private suspend fun importData(context: Context, data: BackupData) = withContext(Dispatchers.IO) {
+/**
+ * 导入数据（含图片 Base64）
+ */
+private suspend fun importDataWithImages(context: Context, data: BackupData) = withContext(Dispatchers.IO) {
     val db = RecipeDatabase.getDatabase(context)
     val currentTime = System.currentTimeMillis()
     
-    // 获取现有数据
     val existingCategories = db.categoryDao().getAllCategories().first()
     val existingRecipes = db.recipeDao().getAllRecipes().first()
     
-    // 创建 ID 映射（旧ID -> 新ID）
     val categoryIdMap = mutableMapOf<Long, Long>()
-    val recipeIdMap = mutableMapOf<Long, Long>()
     
-    // 导入分类（根据名称匹配）
+    // 导入分类
     data.categories.forEach { importCategory ->
         val existingCategory = existingCategories.find { it.name == importCategory.name }
         
         if (existingCategory != null) {
-            // 已存在同名分类，更新时间
             db.categoryDao().update(existingCategory.copy(updatedAt = currentTime))
             categoryIdMap[importCategory.id] = existingCategory.id
         } else {
-            // 不存在，新增
             val newId = db.categoryDao().insert(importCategory.copy(id = 0))
             categoryIdMap[importCategory.id] = newId
         }
     }
     
-    // 导入菜谱（根据名称和分类匹配，同分类同名则覆盖）
+    // 导入菜谱
     data.recipes.forEach { importRecipe ->
         val newCategoryId = categoryIdMap[importRecipe.categoryId] ?: importRecipe.categoryId
         val existingRecipe = existingRecipes.find { 
             it.name == importRecipe.name && it.categoryId == newCategoryId 
         }
         
-        // 处理封面图：如果有 base64 图片，保存到文件
-        val coverImagePath = if (!importRecipe.coverImageBase64.isNullOrEmpty()) {
-            saveBase64Image(context, importRecipe.coverImageBase64, importRecipe.name)
-        } else {
-            importRecipe.coverImagePath
-        }
+        // 解码封面图
+        val coverImagePath = decodeBase64ToImage(context, importRecipe.coverImageBase64, "cover")
         
         if (existingRecipe != null) {
-            // 已存在同分类同名菜谱，覆盖（保留创建时间，更新修改时间）
+            // 删除旧图片
+            ImageUtils.deleteImage(existingRecipe.coverImagePath)
+            val oldSteps = db.stepDao().getStepsByRecipeSync(existingRecipe.id)
+            oldSteps.forEach { ImageUtils.deleteImage(it.imagePath) }
+            
+            // 更新菜谱
             db.recipeDao().update(existingRecipe.copy(
-                coverImagePath = coverImagePath ?: existingRecipe.coverImagePath,
+                coverImagePath = coverImagePath,
                 updatedAt = currentTime
-                // 保留原有的 createdAt、isFavorite、clickCount
             ))
             
-            // 删除旧的用料和步骤
             db.ingredientDao().deleteByRecipeId(existingRecipe.id)
             db.stepDao().deleteByRecipeId(existingRecipe.id)
             
-            // 导入新的用料
+            // 导入用料
             data.ingredients.filter { it.recipeId == importRecipe.id }.forEach { ingredient ->
                 db.ingredientDao().insert(ingredient.copy(id = 0, recipeId = existingRecipe.id))
             }
             
-            // 导入新的步骤
+            // 导入步骤
             data.steps.filter { it.recipeId == importRecipe.id }.forEach { step ->
-                db.stepDao().insert(step.copy(id = 0, recipeId = existingRecipe.id))
+                val stepImagePath = decodeBase64ToImage(context, step.imageBase64, "step")
+                db.stepDao().insert(Step(
+                    id = 0,
+                    recipeId = existingRecipe.id,
+                    description = step.description,
+                    imagePath = stepImagePath,
+                    stepNumber = step.stepNumber,
+                    sortOrder = step.sortOrder
+                ))
             }
-            
-            recipeIdMap[importRecipe.id] = existingRecipe.id
         } else {
-            // 不存在，新增
-            val recipe = importRecipe.toRecipe().copy(
-                id = 0, 
+            // 新增菜谱
+            val newId = db.recipeDao().insert(Recipe(
+                id = 0,
+                name = importRecipe.name,
                 categoryId = newCategoryId,
-                coverImagePath = coverImagePath
-            )
-            val newId = db.recipeDao().insert(recipe)
-            recipeIdMap[importRecipe.id] = newId
+                coverImagePath = coverImagePath,
+                clickCount = importRecipe.clickCount,
+                isFavorite = importRecipe.isFavorite,
+                createdAt = importRecipe.createdAt,
+                updatedAt = importRecipe.updatedAt
+            ))
             
             // 导入用料
             data.ingredients.filter { it.recipeId == importRecipe.id }.forEach { ingredient ->
@@ -487,8 +468,50 @@ private suspend fun importData(context: Context, data: BackupData) = withContext
             
             // 导入步骤
             data.steps.filter { it.recipeId == importRecipe.id }.forEach { step ->
-                db.stepDao().insert(step.copy(id = 0, recipeId = newId))
+                val stepImagePath = decodeBase64ToImage(context, step.imageBase64, "step")
+                db.stepDao().insert(Step(
+                    id = 0,
+                    recipeId = newId,
+                    description = step.description,
+                    imagePath = stepImagePath,
+                    stepNumber = step.stepNumber,
+                    sortOrder = step.sortOrder
+                ))
             }
         }
+    }
+}
+
+/**
+ * 将图片文件编码为 Base64
+ */
+private fun encodeImageToBase64(imagePath: String?): String? {
+    if (imagePath.isNullOrBlank()) return null
+    return try {
+        val file = File(imagePath)
+        if (file.exists()) {
+            val bytes = file.readBytes()
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
+ * 将 Base64 解码并保存为图片文件
+ */
+private fun decodeBase64ToImage(context: Context, base64: String?, prefix: String): String? {
+    if (base64.isNullOrBlank()) return null
+    return try {
+        val bytes = Base64.decode(base64, Base64.NO_WRAP)
+        val imageDir = ImageUtils.getImageDir(context)
+        val file = File(imageDir, "${prefix}_${System.currentTimeMillis()}.jpg")
+        file.writeBytes(bytes)
+        file.absolutePath
+    } catch (e: Exception) {
+        null
     }
 }
