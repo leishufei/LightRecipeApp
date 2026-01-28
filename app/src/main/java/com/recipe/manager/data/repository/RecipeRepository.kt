@@ -8,6 +8,7 @@ import com.recipe.manager.data.entity.Recipe
 import com.recipe.manager.data.entity.RecipeWithCategory
 import com.recipe.manager.data.entity.RecipeWithDetails
 import com.recipe.manager.data.entity.Step
+import com.recipe.manager.util.ImageUtils
 import kotlinx.coroutines.flow.Flow
 
 class RecipeRepository(
@@ -79,11 +80,33 @@ class RecipeRepository(
     }
     
     suspend fun deleteRecipe(recipe: Recipe) {
+        // 删除关联的图片文件
+        deleteRecipeImages(recipe.id)
         recipeDao.delete(recipe)
     }
     
     suspend fun deleteRecipesByIds(ids: List<Long>) {
+        // 删除关联的图片文件
+        ids.forEach { id ->
+            deleteRecipeImages(id)
+        }
         recipeDao.deleteByIds(ids)
+    }
+    
+    /**
+     * 删除菜谱关联的所有图片
+     */
+    private suspend fun deleteRecipeImages(recipeId: Long) {
+        // 获取菜谱详情
+        val details = recipeDao.getRecipeWithDetails(recipeId)
+        if (details != null) {
+            // 删除封面图
+            ImageUtils.deleteImage(details.recipe.coverImagePath)
+            // 删除步骤图
+            details.steps.forEach { step ->
+                ImageUtils.deleteImage(step.imagePath)
+            }
+        }
     }
     
     suspend fun incrementClickCount(id: Long) {
