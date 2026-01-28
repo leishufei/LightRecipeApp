@@ -79,6 +79,9 @@ dependencies {
 
     // Coil for image loading
     implementation("io.coil-kt:coil-compose:2.5.0")
+    
+    // ExifInterface for image rotation
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")

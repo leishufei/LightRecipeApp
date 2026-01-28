@@ -37,11 +37,10 @@ import com.recipe.manager.data.entity.Step
 import com.recipe.manager.ui.components.*
 import com.recipe.manager.ui.navigation.Screen
 import com.recipe.manager.ui.theme.*
-import com.recipe.manager.ui.theme.*
 import com.recipe.manager.ui.viewmodel.CategoryViewModel
 import com.recipe.manager.ui.viewmodel.RecipeViewModel
+import com.recipe.manager.util.ImageUtils
 import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 
 data class IngredientInput(
@@ -124,7 +123,7 @@ fun RecipeEditScreen(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                val path = saveImageToPrivate(context, uri)
+                val path = ImageUtils.saveAndCompressImage(context, uri, "cover")
                 if (currentStepIndex == -1) {
                     coverImagePath = path
                 } else {
@@ -150,7 +149,7 @@ fun RecipeEditScreen(
         ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && tempPhotoUri != null) {
-            val path = saveImageToPrivate(context, tempPhotoUri!!)
+            val path = ImageUtils.saveAndCompressImage(context, tempPhotoUri!!, if (currentStepIndex == -1) "cover" else "step")
             if (currentStepIndex == -1) {
                 coverImagePath = path
             } else {
@@ -760,24 +759,7 @@ private fun StepInputItem(
 }
 
 private fun createImageFile(context: Context): File {
-    val imageDir = File(context.filesDir, "images")
+    val imageDir = File(context.filesDir, "recipe_images")
     if (!imageDir.exists()) imageDir.mkdirs()
     return File(imageDir, "IMG_${System.currentTimeMillis()}.jpg")
-}
-
-private fun saveImageToPrivate(context: Context, uri: Uri): String? {
-    return try {
-        val imageDir = File(context.filesDir, "images")
-        if (!imageDir.exists()) imageDir.mkdirs()
-        val file = File(imageDir, "IMG_${System.currentTimeMillis()}.jpg")
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(file).use { output ->
-                input.copyTo(output)
-            }
-        }
-        file.absolutePath
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
 }
