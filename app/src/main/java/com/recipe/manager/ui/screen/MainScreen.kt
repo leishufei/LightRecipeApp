@@ -71,9 +71,9 @@ private fun BottomNavigationBar(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .height(48.dp),
         color = Color.White,
-        shadowElevation = 8.dp
+        shadowElevation = 4.dp
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -93,8 +93,8 @@ private fun BottomNavigationBar(
             ) {
                 Text(
                     text = "菜谱",
-                    fontSize = 15.sp,
-                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 14.sp,
+                    fontWeight = if (selectedTab == 0) FontWeight.Medium else FontWeight.Normal,
                     color = if (selectedTab == 0) Color.White else Gray500
                 )
             }
@@ -112,8 +112,8 @@ private fun BottomNavigationBar(
             ) {
                 Text(
                     text = "我的",
-                    fontSize = 15.sp,
-                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 14.sp,
+                    fontWeight = if (selectedTab == 1) FontWeight.Medium else FontWeight.Normal,
                     color = if (selectedTab == 1) Color.White else Gray500
                 )
             }
